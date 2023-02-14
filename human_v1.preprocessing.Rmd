@@ -1,0 +1,83 @@
+---
+title: "Pediatric Acute Rejection - Data Pre-Processing"
+author: "Xiao Li"
+date: "02/24/2022"
+output: html_document
+---
+
+#### ------------------------
+
+
+##  1.  "2022_Unpub2_DTuraga"
+
+##  Mapping
+```{bash}
+## @ bobbyd
+cd ~/work/peds/2022_Unpub2_DTuraga/matrix
+
+SAMPLE=("P136" "P170")
+NAME=("P136_s1" "P170_s1")
+
+for ((i=0;i<=${#SAMPLE[@]}-1;++i)); 
+do echo ${SAMPLE[i]} ${NAME[i]};
+cellranger count \
+--include-introns \
+--localmem 80 \
+--localcores 20 \
+--transcriptome ~/work/genome/index_cellranger/refdata-gex-GRCh38-2020-A/ \
+--id 2022_Unpub2_DTuraga_${NAME[i]} \
+--sample ${NAME[i]} \
+--fastqs ../fastq/;
+rm -r 2022_Unpub2_DTuraga_${NAME[i]}/SC_RNA_COUNTER_CS/
+
+cellranger count \
+--include-introns \
+--localmem 200 \
+--localcores 64 \
+--transcriptome ~/work/genome/index_cellranger/refdata-gex-GRCh38-2020-A/ \
+--id 2021_Unpub1_DTuraga_${NAME} \
+--sample ${NAME[i]} \
+--fastqs ../fastq/;
+rm -r 2021_Unpub1_DTuraga_${NAME}/SC_RNA_COUNTER_CS/
+done
+```
+
+## CellBender
+```{bash}
+## @moria
+DATA='2022_Unpub2_DTuraga'
+
+for DATANAME in $DATA;
+do echo $DATANAME;
+  cd ~/moria/peds/data/${DATANAME}/matrix/
+  for i in $(ls | grep -v '^cellbender');
+  do mkdir -p cellbender_v1/${i};
+  done
+
+  cd cellbender_v1
+  for i in $(ls | grep -v '^cellbender');
+  do echo $i;
+  if [ ! -f ${i}/cellbender_filtered.h5 ]; 
+    then ORICELL=$(gunzip -c ../${i}/outs/filtered_feature_bc_matrix/barcodes.tsv.gz |wc -l);
+    EXPCELL=$((ORICELL+ORICELL/2)) ## add 50% cells
+    TOTCELL=25000;
+    if (($EXPCELL>=20000));
+      then TOTCELL=50000;
+        if (($EXPCELL>=45000));
+        then TOTCELL=750000;
+        fi;
+    fi;
+    LOW=15;
+    if (($ORICELL<=5000));
+      then LOW=10;
+        if (($ORICELL<=2000));
+        then LOW=5;
+        fi; 
+    fi;
+    echo $ORICELL $EXPCELL $TOTCELL $LOW;
+    cellbender remove-background --input ../${i}/outs/raw_feature_bc_matrix.h5  --output ${i}/cellbender.h5 --cuda --expected-cells $EXPCELL --total-droplets-included $TOTCELL --low-count-threshold $LOW --epochs 200;
+  fi;
+  done;
+done
+```
+

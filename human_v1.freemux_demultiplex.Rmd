@@ -1,0 +1,263 @@
+---
+title: "Pediatric Acute Rejection - Freemuxlet Demultiplex"
+author: "Xiao Li"
+date: "05/09/2022"
+output: html_document
+---
+
+#### ------------------------
+
+
+##  Prepare 1000 Genome Common Variant VCF  
+```{bash}
+#### @ rivendell
+cd /Volumes/shire/genome/vcf/1000g_hg38_ebi_vcf
+
+#### Download chr-split vcf:
+## ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000_genomes_project/release/20190312_biallelic_SNV_and_INDEL/
+for i in {1..22}; do ln -s ALL.chr${i}.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz chr${i}.vcf.gz
+ln -s ALL.chrX.shapeit2_integrated_snvindels_v2a_27022019.GRCh38.phased.vcf.gz chrX.vcf.gz
+
+#### Concatenate chromosomes
+bcftools concat \
+chr1.vcf.gz \
+chr10.vcf.gz \
+chr11.vcf.gz \
+chr12.vcf.gz \
+chr13.vcf.gz \
+chr14.vcf.gz \
+chr15.vcf.gz \
+chr16.vcf.gz \
+chr17.vcf.gz \
+chr18.vcf.gz \
+chr19.vcf.gz \
+chr2.vcf.gz \
+chr20.vcf.gz \
+chr21.vcf.gz \
+chr22.vcf.gz \
+chr3.vcf.gz \
+chr4.vcf.gz \
+chr5.vcf.gz \
+chr6.vcf.gz \
+chr7.vcf.gz \
+chr8.vcf.gz \
+chr9.vcf.gz \
+chrX.vcf.gz \
+-Oz -o  \
+chr_merge.vcf.gz
+
+#### Rename chromosome names
+## Create tsv of new names (chr_rename.tsv):
+## 1    chr1
+## 2    chr2
+## ...  ...        
+## X    chrX
+bcftools annotate --rename-chrs chr_rename.tsv chr_merge.vcf.gz | gzip -c >chr_merge_rename.vcf.gz
+
+#### Filter for common variants (>5%)
+bcftools view -i 'INFO/AF > 0.05' chr_merge_rename.vcf.gz | pigz -c >chr_merge_rename_AF5e2.vcf.gz
+
+#### VCF has 7,693,567 common variants
+
+## Filter 1000G vcf
+source $bio/tool/popscle_helper_tools/filter_vcf_file_for_popscle.sh
+check_if_programs_exists
+only_keep_snps $shire/genome/vcf/1000g_hg38_ebi_vcf/chr_merge_rename_AF5e2.vcf.gz \
+        | calculate_AF_AC_AN_values_based_on_genotype_info \
+        | filter_out_mutations_missing_genotype_for_one_or_more_samples \
+        | filter_out_mutations_homozygous_reference_in_all_samples \
+        | filter_out_mutations_homozygous_in_all_samples \
+        | pigz -c >ref.vcf.gz
+zgrep -v "^#" ref.vcf.gz | wc -l ## 6,826,029 common variants used
+```
+
+##  Prepare input files
+```{bash}
+#### @ rivendell
+
+#### for P136
+cd /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/popscle/2022_Unpub2_DTuraga_P136_s1
+## Prepare files from 10X CellRanger
+ln -s /Volumes/shire/genome/vcf/1000g_hg38_ebi_vcf/ref.vcf.gz
+ln -s ../../2022_Unpub2_DTuraga_P136_s1/outs/possorted_genome_bam.bam
+cp ../../2022_Unpub2_DTuraga_P136_s1/outs/filtered_feature_bc_matrix/barcodes.tsv.gz ./ && gunzip barcodes.tsv.gz
+## Filter 10X bam
+conda activate genomics
+$bio/tool/popscle_helper_tools/filter_bam_file_for_popscle_dsc_pileup.sh \
+        possorted_genome_bam.bam \
+        barcodes.tsv \
+        ref.vcf.gz \
+        filter_bam_file_for_popscle_dsc_pileup.bam
+
+# ## Sort VCF chromosomes in accordance with bam (~1 hr)
+# conda activate genomics
+# $bio/tool/popscle_helper_tools/sort_vcf_same_as_bam.sh \
+#     filter_bam_file_for_popscle_dsc_pileup.bam \
+#     ref.vcf.gz \
+#     | pigz -c >ref_sorted.vcf.gz
+# zgrep -v "^#" ref.vcf.gz | wc -l ## 6,826,029 common variants used
+# rm ref.vcf.gz
+
+#### for P170
+cd /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/popscle/2022_Unpub2_DTuraga_P170_s1
+## Prepare files from 10X CellRanger
+ln -s /Volumes/shire/genome/vcf/1000g_hg38_ebi_vcf/ref.vcf.gz
+ln -s ../../2022_Unpub2_DTuraga_P170_s1/outs/possorted_genome_bam.bam
+cp ../../2022_Unpub2_DTuraga_P170_s1/outs/filtered_feature_bc_matrix/barcodes.tsv.gz ./ && gunzip barcodes.tsv.gz
+## Filter 10X bam
+conda activate genomics
+$bio/tool/popscle_helper_tools/filter_bam_file_for_popscle_dsc_pileup.sh \
+        possorted_genome_bam.bam \
+        barcodes.tsv \
+        ref.vcf.gz \
+        filter_bam_file_for_popscle_dsc_pileup.bam
+```
+
+##  Run popscle pipeline
+```{bash}
+#### @ rivendell
+
+#### for P136
+cd /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/popscle/2022_Unpub2_DTuraga_P136_s1
+conda activate popscle
+#### Run pileup (slow, ~6hrs)
+popscle dsc-pileup \
+    --sam filter_bam_file_for_popscle_dsc_pileup.bam \
+    --vcf ref.vcf.gz \
+    --group-list barcodes.tsv \
+    --out 2022_Unpub2_DTuraga_P136_s1.pileup
+#### Run Freemuxlet inference 
+popscle freemuxlet \
+    --plp 2022_Unpub2_DTuraga_P136_s1.pileup \
+    --nsample 2 \
+    --out 2022_Unpub2_DTuraga_P136_s1.freemux
+    
+#### for P170
+cd /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/popscle/2022_Unpub2_DTuraga_P170_s1
+conda activate popscle
+#### Run pileup (slow, ~6hrs)
+popscle dsc-pileup \
+    --sam filter_bam_file_for_popscle_dsc_pileup.bam \
+    --vcf ref.vcf.gz \
+    --group-list barcodes.tsv \
+    --out 2022_Unpub2_DTuraga_P170_s1.pileup
+#### Run Freemuxlet inference 
+popscle freemuxlet \
+    --plp 2022_Unpub2_DTuraga_P170_s1.pileup \
+    --nsample 2 \
+    --out 2022_Unpub2_DTuraga_P170_s1.freemux
+```
+
+
+##  Try VarTrix pipeline (for visualziation of single SNPs used for demuxlet)
+```{bash}
+#### @ rivendell
+
+#### for P136
+cd /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/vartrix/2022_Unpub2_DTuraga_P136_s1
+#### Prepare input files
+ln -s ../../popscle/2022_Unpub2_DTuraga_P136_s1/ref.vcf.gz
+ln -s $shire/genome/index_cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa
+ln -s $shire/genome/index_cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fai
+ln -s ../../popscle/2022_Unpub2_DTuraga_P136_s1/filter_bam_file_for_popscle_dsc_pileup.bam
+ln -s ../../popscle/2022_Unpub2_DTuraga_P136_s1/filter_bam_file_for_popscle_dsc_pileup.bam.csi
+ln -s ../../popscle/2022_Unpub2_DTuraga_P136_s1/barcodes.tsv
+#### Run VarTrix inference using consensus mode
+vartrix \
+        --vcf ref.vcf.gz \
+        --bam filter_bam_file_for_popscle_dsc_pileup.bam \
+        --fasta genome.fa \
+        --cell-barcodes barcodes.tsv \
+        --out-matrix output_consensus.mat \
+        --out-variants outvariants_consensus.txt \
+        --threads 32
+#### Run VarTrix inference using coverage mode
+vartrix \
+        --vcf ref.vcf.gz \
+        --bam filter_bam_file_for_popscle_dsc_pileup.bam \
+        --fasta genome.fa \
+        --cell-barcodes barcodes.tsv \
+        --out-matrix output_alt_coverage.mat \
+        --out-variants outvariants_coverage.txt \
+        --threads 32 \
+        --scoring-method coverage \
+        --ref-matrix output_ref_coverage.mat
+        
+#### for P170
+mkdir -p /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/vartrix/2022_Unpub2_DTuraga_P170_s1
+cd /Volumes/shire/data/scrnaseq/2022_Unpub2_DTuraga/matrix/vartrix/2022_Unpub2_DTuraga_P170_s1
+#### Prepare input files
+ln -s ../../popscle/2022_Unpub2_DTuraga_P170_s1/ref.vcf.gz
+ln -s $shire/genome/index_cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa
+ln -s $shire/genome/index_cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa.fai
+ln -s ../../popscle/2022_Unpub2_DTuraga_P170_s1/filter_bam_file_for_popscle_dsc_pileup.bam
+ln -s ../../popscle/2022_Unpub2_DTuraga_P170_s1/filter_bam_file_for_popscle_dsc_pileup.bam.csi
+ln -s ../../popscle/2022_Unpub2_DTuraga_P170_s1/barcodes.tsv
+#### Run VarTrix inference using consensus mode
+vartrix \
+        --vcf ref.vcf.gz \
+        --bam filter_bam_file_for_popscle_dsc_pileup.bam \
+        --fasta genome.fa \
+        --cell-barcodes barcodes.tsv \
+        --out-matrix output_consensus.mat \
+        --out-variants outvariants_consensus.txt \
+        --threads 32
+#### Run VarTrix inference using coverage mode
+vartrix \
+        --vcf ref.vcf.gz \
+        --bam filter_bam_file_for_popscle_dsc_pileup.bam \
+        --fasta genome.fa \
+        --cell-barcodes barcodes.tsv \
+        --out-matrix output_alt_coverage.mat \
+        --out-variants outvariants_coverage.txt \
+        --threads 32 \
+        --scoring-method coverage \
+        --ref-matrix output_ref_coverage.mat
+        
+#### for P182
+#### Followed 2022_pediatric_general/human_v0.preprocessing.Rmd
+```
+
+
+##  Run Souporcell pipeline (as 2nd method for validation)
+```{bash}
+#### @ moria
+
+#### For P136
+cd ~/moria/acute_rejection/matrix/souporcell/2022_Unpub2_DTuraga_P136_s1
+#### Prepare input files
+cp ../../popscle/2022_Unpub2_DTuraga_P136_s1/ref.vcf.gz ## only needed if run with --common_variants option
+cp ~/moria/genome/index_cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa
+cp ~/moria/acute_rejection/matrix/2022_Unpub2_DTuraga_P136_s1/outs/possorted_genome_bam.bam
+cp ~/moria/acute_rejection/matrix/2022_Unpub2_DTuraga_P136_s1/outs/possorted_genome_bam.bam.bai
+cp ../../popscle/2022_Unpub2_DTuraga_P136_s1/barcodes.tsv
+#### Run Souporcell via singularity
+## CRITICAL: must bind absolute path that does not contain link! (binding /home/xli/moria/acute_rejection/.. won't work)
+singularity exec --bind /moria/acute_rejection/matrix/souporcell/2022_Unpub2_DTuraga_P136_s1 \
+    ~/moria/tool/souporcell/souporcell_latest.sif souporcell_pipeline.py \
+        -i possorted_genome_bam.bam \
+        -b barcodes.tsv \
+        -f genome.fa \
+        -t 24 \
+        -o output \
+        -k 2
+        
+#### For P170
+cd ~/moria/acute_rejection/matrix/souporcell/2022_Unpub2_DTuraga_P170_s1
+#### Prepare input files
+cp ../../popscle/2022_Unpub2_DTuraga_P170_s1/ref.vcf.gz ./ ## only needed if run with --common_variants option
+cp ~/moria/genome/index_cellranger/refdata-gex-GRCh38-2020-A/fasta/genome.fa ./
+cp ~/moria/acute_rejection/matrix/2022_Unpub2_DTuraga_P170_s1/outs/possorted_genome_bam.bam ./
+cp ~/moria/acute_rejection/matrix/2022_Unpub2_DTuraga_P170_s1/outs/possorted_genome_bam.bam.bai ./
+cp ../../2022_Unpub2_DTuraga_P170_s1/outs/filtered_feature_bc_matrix/barcodes.tsv.gz ./ && gunzip barcodes.tsv.gz
+#### Run Souporcell via singularity
+## CRITICAL: must bind absolute path that does not contain link! (binding /home/xli/moria/acute_rejection/.. won't work)
+singularity exec --bind /moria/acute_rejection/matrix/souporcell/2022_Unpub2_DTuraga_P170_s1 \
+    ~/moria/tool/souporcell/souporcell_latest.sif souporcell_pipeline.py \
+        -i possorted_genome_bam.bam \
+        -b barcodes.tsv \
+        -f genome.fa \
+        -t 24 \
+        -o output \
+        -k 2
+```
