@@ -17,7 +17,7 @@ source(Sys.readlink(paste0(Code_dir, 'src/scRNAseq.R')))
 source(Sys.readlink(paste0(Code_dir, 'src/geneset_human.R')))
 source(paste0(Code_dir, 'human_v', Ver, '.helper_functions.R'))
 
-InitiateProject('Rivendell', Ver, Step, 'human', Project, 'ithil')
+InitiateProject('Rivendell', Ver, Step, 'human', Project, 'bree')
 
 Color_cell_type <- c(mycol_40[c(3, 6, 11, 14, 35, 17, 22, 26, 30)], 'grey50', 'grey80', 'grey90')
 ####--------------------------------------------------------------------------------------------------------------------
@@ -106,6 +106,7 @@ srt$Cell_state[Cells(ec.srt)] <- ec.srt$Cell_state
 Table(srt$Cell_state, srt$Cell_type)
 
 srt@reductions$sub_scANVI_umap@cell.embeddings[Cells(ec.srt),] <- ec.srt@reductions$sub_scANVI_umap@cell.embeddings
+
 DimPlot2(srt, reduction = 'sub_scANVI_umap', group.by = 'Cell_state', split.by = 'Cell_type', ncol = 3)
 ####--------------------------------------------------------------------------------------------------------------------
 
@@ -135,6 +136,7 @@ srt$Cell_state[Cells(smc.srt)] <- smc.srt$Cell_state
 Table(srt$Cell_state, srt$Cell_type)
 
 srt@reductions$sub_scANVI_umap@cell.embeddings[Cells(smc.srt),] <- smc.srt@reductions$sub_scANVI_umap@cell.embeddings
+
 DimPlot2(srt, reduction = 'sub_scANVI_umap', group.by = 'Cell_state', split.by = 'Cell_type', ncol = 3)
 ####--------------------------------------------------------------------------------------------------------------------
 
@@ -178,6 +180,8 @@ srt$Cell_type_non_ambig[srt$Cell_type %in% c('Doublet', 'Mito')] <- F
 srt$Cell_type_non_ambig[srt$Cell_state %in% c('Doublet', 'Mito')] <- F
 Table(srt$Cell_type_non_ambig, srt$Cell_type)
 Table(srt$Cell_type_non_ambig, srt$Cell_state)
+####--------------------------------------------------------------------------------------------------------------------
+saveRDS(srt, 'integrated/STEP18.annotated_with_ambig.srt.rds')
 ####--------------------------------------------------------------------------------------------------------------------
 
 

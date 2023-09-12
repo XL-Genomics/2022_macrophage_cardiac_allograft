@@ -516,7 +516,7 @@ PlotPDF('02.4.feat.resmp_marker', 22, 3)
 p4
 dev.off()
 
-####  Plot 5 umap P136 myeloid color by cell origin ####
+####  Plot 5 umap three allograft myeloid color by cell origin ####
 p5 <- DimPlot2(mye.srt, reduction = 'sub_umap', raster = F, split.by = 'name2',
                cols = Color_genotype2[-c(3)], group.by = 'Origin') +
         labs(x = 'UMAP1', y = "UMAP2", title = 'Myeloid cell subtypes')
@@ -529,30 +529,28 @@ dev.off()
 tmp.srt <- full.srt[, full.srt$name2 != 'Control' & full.srt$Cell_type == 'Mye' & full.srt$Origin != 'Ambiguous']
 tmp.srt$Origin <- droplevels(tmp.srt$Origin)
 p6.1 <- CountCellBarPlot(tmp.srt[, tmp.srt$name == '5d PT'], group.var = 'Cell_state', stack.var = 'Origin',
-                         stack.color = Color_genotype2)$plot
-p6.2 <- CountCellBarPlot(tmp.srt[, tmp.srt$name == '15m PT'], group.var = 'Cell_state', stack.var = 'Origin',
-                         stack.color = Color_genotype2)$plot
-p6.3 <- CountCellBarPlot(tmp.srt[, tmp.srt$name == '12y PT'], group.var = 'Cell_state', stack.var = 'Origin',
-                         stack.color = Color_genotype2)$plot
-p6 <- p6.1 + p6.2 + p6.3 &
+                         stack.color = Color_genotype2, percentage = F)$plot
+p6.2 <- CountCellBarPlot(tmp.srt[, tmp.srt$name != '5d PT'], group.var = 'Cell_state', stack.var = 'Origin',
+                         stack.color = Color_genotype2, percentage = F)$plot
+p6 <- p6.1 + p6.2 &
         labs(title = 'Freemuxlet genotyping', fill = '', xlab = '', ylab = 'Cell count')
 p6
-PlotPDF('02.6.bar.p136_mye_genotype_composition', 9, 3)
+PlotPDF('02.6.bar.p136_mye_genotype_composition', 6, 3)
 p6
 dev.off()
 
 ####  Plot 7 box P136 myeloid expressing Bajpai/Dick mac markers split by origin  ####
 TRMP_gene <- c('CD163L1', 'MRC1', 'MAF', 'SIGLEC1', 'CCL8', 'CCL14', 'LILRB5', 'LYVE1', 'IL2RA', 'PDGFC', 'WLS', 'DAB2',
                'NRP1', 'SCN9A', 'FGF13', 'GDF15', 'IGF1', 'FMOD', 'SLIT3', 'EGFL7', 'ECM1', 'SDC3')
-genes <- read_excel('external/sciimmunol.abf7777_tables_s1_to_s9/sciimmunol.abf7777_table_s7.xlsx',
-                    sheet = 3, col_names = T, skip = 1) ## These genes are from the E. Slava's Science Immun Paper
-genes <- genes[genes$avg_logFC > 0.75 & genes$p_val_adj < 0.001, ]
-gl <- split(genes$gene, genes$cluster)
-tmp.srt <- AddModuleScore2(momp_p136.srt, features = c(list(TRMP_gene), gl),
-                           names = c('TRMP', names(gl)), return_z = T)
+MoMP_gene <- c('CCL17', 'CCR5', 'CCR2', 'CXCL9', 'CXCL3', 'CXCL2', 'CXCL10', 'CSF2RA', 'CCL5', 'CCL20', 'TREM1', 'TET2',
+               'NFKBIE', 'IL1R1', 'IL1R2', 'NFKB1', 'REL', 'MAP2K3', 'IL1A', 'NLRP3', 'TRAF1', 'MAPK6', 'SRC', 'IL1B',
+               'NOD2', 'JAK3', 'IRAK2', 'MAP3K8', 'RELB', 'SOCS3', 'MYD88', 'MMP9', 'IL20', 'AREG', 'PTX3', 'IL23A',
+               'IL10', 'OSM', 'TIMP1', 'EREG', 'IL27') ## These genes are from the K. Lavine's Nature Medicine Paper
+tmp.srt <- AddModuleScore2(momp_p136.srt, features = list(TRMP_gene, MoMP_gene),
+                           names = c('TRMP', 'MoMP'), return_z = T)
 tmp.srt <- tmp.srt[, tmp.srt$Cell_state %in% c('MP2', 'Mono')]
 p7.1 <- BoxPlot(tmp.srt, feature = 'TRMP', group.by = 'Cell_state_orig', cols = Color_cell_state_orig_mye)
-p7.2 <- BoxPlot(tmp.srt, feature = names(gl)[2], group.by = 'Cell_state_orig', cols = Color_cell_state_orig_mye)
+p7.2 <- BoxPlot(tmp.srt, feature = 'MoMP', group.by = 'Cell_state_orig', cols = Color_cell_state_orig_mye)
 p7.1 + p7.2
 PlotPDF('02.7.box.mp2_marker_exp_in_p136_group_by_origin', 7, 3)
 p7.1 + p7.2
@@ -583,9 +581,20 @@ p9
 dev.off()
 
 ####  Plot 10 bar Mono MP composition  ####
-tmp.srt <- full.srt[, full.srt$Cell_type == 'Mye' & full.srt$Origin != 'Ambiguous' & full.srt$Cell_state != 'Mast']
-p10 <- CountCellBarPlot(tmp.srt, group.var = 'name2', stack.var = 'Cell_state',
-                        percentage = T, stack.color = Color_cell_state_mye)$plot
+tmp.srt <- full.srt[, full.srt$Origin != 'Ambiguous']
+df <- as.data.frame(table(tmp.srt$name2, tmp.srt$Cell_state))
+total <- as.vector(Table(tmp.srt$name2))
+names(total) <- names(Table(tmp.srt$name2))
+df$Fraction <- df$Freq/total[df$Var1]
+df2 <- df[df$Var2 %in% c('Mono', 'MP1', 'MP2'), ]
+p10 <- ggplot(df2, aes(fill = Var2, y = Fraction, x = Var1)) +
+        geom_bar(position = "stack", stat = "identity", width = 0.8) +
+        scale_fill_manual(values = Color_cell_state_mye) +
+        labs(y = 'Fraction of total nuclei count', x = '', fill = '') +
+        theme_minimal() +
+        theme(panel.grid.major.x =  element_blank(),
+                panel.grid.minor.x = element_blank()) +
+        RotatedAxis()
 p10
 PlotPDF('02.10.bar.mono_mp_composition', 4, 4)
 p10
@@ -725,7 +734,7 @@ PlotPDF('03.6.pca.mp2_pca_origin', 8, 8)
 p6
 dev.off()
 
-####  Plot 7 tree allograft MoMP2 similarity to ResMP2  ####
+####  Plot 7 three allograft MoMP2 similarity to ResMP2  ####
 pc_dim <- readRDS('analysis/STEP23.mp2_harmonized_pc.srt_redu.rds')
 df <- as.data.frame(pc_dim@cell.embeddings[, 1:2])
 df$Group[Cells(mp2.srt)] <- as.vector(mp2.srt$Group)
@@ -1058,24 +1067,49 @@ dev.off()
 deg_all <- readRDS('analysis/STEP23.mp2_3_way_compare_with_resmp.srt_mk.rds')
 deg_all <- deg_all[deg_all$cluster != 'MoMP2 5d PT', ]
 deg_pos <- deg_all[deg_all$p_val_adj < 0.05 & deg_all$avg_log2FC > 0.5, ]
-deg_pos_df <- data.frame(Genes = U(deg_pos$gene), Cluster = NA)
+deg_neg <- deg_all[deg_all$p_val_adj < 0.05 & deg_all$avg_log2FC < -0.5, ]
+deg_both <- rbind(deg_pos, deg_neg)
+x <- split(deg_both$gene, deg_both$cluster)
+O(x$`MoMP2 12y PT`, x$`MoMP2 15m PT`)
+
+deg_pos_df <- data.frame(Genes = U(deg_pos$gene), Cluster = NA, TMP = NA)
 for(i in 1:nrow(deg_pos_df)){
         deg_pos_df$Cluster[i] <- list(as.vector(deg_pos$cluster[deg_pos$gene == deg_pos_df$Genes[i]]))
+        deg_pos_df$TMP[i] <- paste(as.vector(deg_pos$cluster[deg_pos$gene == deg_pos_df$Genes[i]]), collapse = ' ')
 }
-deg_neg <- deg_all[deg_all$p_val_adj < 0.05 & deg_all$avg_log2FC < -0.5, ]
-deg_neg_df <- data.frame(Genes = U(deg_neg$gene), Cluster = NA)
+deg_neg_df <- data.frame(Genes = U(deg_neg$gene), Cluster = NA, TMP = NA)
 for(i in 1:nrow(deg_neg_df)){
         deg_neg_df$Cluster[i] <- list(as.vector(deg_neg$cluster[deg_neg$gene == deg_neg_df$Genes[i]]))
+        deg_neg_df$TMP[i] <- paste(as.vector(deg_neg$cluster[deg_neg$gene == deg_neg_df$Genes[i]]), collapse = ' ')
 }
 deg_df <- rbind(deg_pos_df, deg_neg_df)
+Table(deg_df$TMP)
+
 p8 <- ggplot(deg_df) +
-        geom_bar(aes(x=Cluster)) +
+        geom_bar(aes(x = Cluster)) +
         scale_x_upset(order_by = 'degree') +
         theme_classic() +
         theme(aspect.ratio = 1)
 p8
 PlotPDF('04.8.upset.momp2_vs_resmp_deg', 4, 4)
 p8
+dev.off()
+
+####  Plot 9 venn MoMP2 vs ResMP DEG overlap  ####
+library("ggVennDiagram")
+deg_all <- readRDS('analysis/STEP23.mp2_3_way_compare_with_resmp.srt_mk.rds')
+deg_all <- deg_all[deg_all$p_val_adj < 0.05, ]
+x <- split(deg_all$gene, deg_all$cluster)
+names(x) <- c('12yPT Recipient MP2', '15mPT Recipient MP2', '5dPT Recipient MP2')
+str(x)
+p9.1 <- Plot2WayVenn(all_genes = unlist(x[c(3, 1)]), x = x[[3]], y = x[[1]], x_name = names(x)[3], y_name = names(x)[1])
+p9.2 <- Plot2WayVenn(all_genes = unlist(x[c(3, 2)]), x = x[[3]], y = x[[2]], x_name = names(x)[3], y_name = names(x)[2])
+p9.3 <- Plot2WayVenn(all_genes = unlist(x[c(2, 1)]), x = x[[2]], y = x[[1]], x_name = names(x)[2], y_name = names(x)[1])
+p9 <- wrap_plots(p9.1, p9.2, p9.3, ncol = 1) &
+        scale_fill_distiller(palette = 'Greys', direction = 0,)
+p9
+PlotPDF('04.9.venn.momp2_vs_resmp_deg', 4, 12)
+p9
 dev.off()
 ####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~----
 
@@ -1664,9 +1698,41 @@ p16
 PlotPDF('06.16.box.nk_rejection_score_vs_dcm', 6, 4)
 p16
 dev.off()
+
+####  Plot 17 bar TC NK composition  ####
+tmp.srt <- full.srt[, full.srt$Origin != 'Ambiguous']
+df <- as.data.frame(table(tmp.srt$name2, tmp.srt$Cell_state))
+total <- as.vector(Table(tmp.srt$name2))
+names(total) <- names(Table(tmp.srt$name2))
+df$Fraction <- df$Freq/total[df$Var1]
+df2 <- df[df$Var2 %in% c('CD4 TC', 'CD8 TC', 'NK1', 'NK2', 'NK3'), ]
+p17 <- ggplot(df2, aes(fill = Var2, y = Fraction, x = Var1)) +
+        geom_bar(position = "stack", stat = "identity", width = 0.8) +
+        scale_fill_manual(values = mycol_10) +
+        labs(y = 'Fraction of total nuclei count', x = '', fill = '') +
+        theme_minimal() +
+        theme(panel.grid.major.x =  element_blank(),
+              panel.grid.minor.x = element_blank()) +
+        RotatedAxis()
+p17
+PlotPDF('06.17.bar.nk_tc_composition', 4, 4)
+p17
+dev.off()
 ####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~----
 
 
 ####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #### Test ####
 ####~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~----
+
+lym.srt <- AddModuleScore2(lym.srt, features = list(c('KIR2DL1', 'KIR2DL2', 'KIR2DL3', 'KIR2DL4', 'KIR2DL5',
+                                                      'KIR3DL1', 'KIR3DL2', 'KIR3DL3')),
+                           names = c('NK_Inh'), assay = 'alra', return_z = T)
+DotPlot2(lym.srt, features = 'NK_Inh', group.by = 'Cell_state')
+
+
+tmp.srt <- mye.srt[, mye.srt$name2 == '5d PT' & mye.srt$Cell_state == 'MP2']
+DimPlot2(tmp.srt, reduction = 'sub_umap', raster = F,
+         cols = Color_genotype2[-c(3)], group.by = 'Origin')
+
+write_csv(tmp.srt@meta.data[, c('orig.name', 'recipient', 'Origin')], file = '~/Desktop/P136_subset_barcode.csv')

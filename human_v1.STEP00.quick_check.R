@@ -17,7 +17,7 @@ source(Sys.readlink(paste0(Code_dir, 'src/scRNAseq.R')))
 source(Sys.readlink(paste0(Code_dir, 'src/geneset_human.R')))
 source(paste0(Code_dir, 'human_v', Ver, '.helper_functions.R'))
 
-InitiateProject('Rivendell', Ver, Step, 'human', Project, 'ithil')
+InitiateProject('Rivendell', Ver, Step, 'human', Project, 'bree')
 ####--------------------------------------------------------------------------------------------------------------------
 
 
