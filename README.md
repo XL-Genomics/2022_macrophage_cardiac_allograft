@@ -13,7 +13,7 @@ The computational framework includes:
 
 ### Availability of data
 
-Raw data and processed data will be available in NIH GEO repositories upon publication.
+Raw data and processed data are available at NIH GEO repositories: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE225652.
 
 ***
 
