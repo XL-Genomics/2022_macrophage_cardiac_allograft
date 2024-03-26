@@ -6,9 +6,7 @@ Pediatric heart transplantation is a life-saving treatment for children with end
 The computational framework includes: 
 
 1) Initial processing of sequencing data and QC.
-
 2) Integration of transplanted heart data with control, cell identity annotationa and visulization.
-
 3) Exploration and investigation of functional differences in gene expression and cell-state shift that may have pathological implications. 
 
 ### Availability of data
@@ -18,4 +16,4 @@ Raw data and processed data are available at NIH GEO repositories: https://www.n
 ***
 
  ### How to cite
- > Details will be made available soon.
+Li X, Turaga D, Li RG, Tsai CR, Quinn JN, Zhao Y, Wilson R, Carlson K, Wang J, Spinner JA, Hickey EJ, Adachi I, Martin JF. The Macrophage Landscape Across the Lifespan of a Human Cardiac Allograft. Circulation. 2024 Feb 12. doi: 10.1161/CIRCULATIONAHA.123.065294. Epub ahead of print. PMID: 38344825.
